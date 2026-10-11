@@ -15,6 +15,8 @@
 
 ## 安装与使用
 
+最新安装包发布在[私有仓库的 Releases](https://github.com/xiematt125-dotcom/memory-glass/releases/latest)。登录有访问权限的 GitHub 账号后，可下载 PKG 或 DMG；每次应用更新都会同步源码并发布对应版本的两个安装包与 SHA256 校验文件。
+
 需要 **Apple Silicon（M 系列芯片）与 macOS 14 或更新版本**。当前产物仅包含 `arm64`，不支持 Intel Mac。
 
 两种安装方式任选其一：
