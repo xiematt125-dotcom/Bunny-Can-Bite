@@ -1,0 +1,12 @@
+.DS_Store
+.build/
+dist/
+*.o
+*.app/
+*.pkg
+*.dmg
+*.zip
+Tests/collector-tests
+Tests/terminator-tests
+Tests/live-snapshot.json
+*.log
