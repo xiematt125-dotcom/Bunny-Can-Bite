@@ -151,13 +151,19 @@ struct TerminatorTests {
     }
 
     static func testReportsAndCodable() throws {
+        let confirmed = request([process()])
+        let unrelated = request([process()])
         for outcome in TerminationOutcome.allCases {
-            let report = TerminationReport(name: "测试程序 🐇", results: [.init(pid: 42, name: "测试程序 🐇", outcome: outcome, message: "结果")])
+            let report = TerminationReport(requestID: confirmed.id, name: "测试程序 🐇", results: [.init(pid: 42, name: "测试程序 🐇", outcome: outcome, message: "结果")])
             precondition(!report.title.isEmpty && !report.message.isEmpty)
             let decoded = try JSONDecoder().decode(TerminationReport.self, from: JSONEncoder().encode(report))
             precondition(decoded.results[0].outcome == outcome && decoded.results[0].id == 42)
             precondition(decoded.id == report.id)
+            precondition(decoded.requestID == confirmed.id && decoded.requestID != unrelated.id)
         }
+        let fake = FakeProcesses()
+        let linked = ProcessTerminator(environment: fake.environment).terminate(confirmed)
+        precondition(linked.requestID == confirmed.id && linked.requestID != unrelated.id)
         let original = request([process()])
         let decoded = try JSONDecoder().decode(TerminationRequest.self, from: JSONEncoder().encode(original))
         precondition(decoded.id == original.id && decoded.processes[0].identity == identity)

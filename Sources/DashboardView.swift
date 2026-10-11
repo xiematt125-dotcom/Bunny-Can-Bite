@@ -692,6 +692,7 @@ private struct ForceQuitButton: View {
 
 private struct TerminationFlowSheet: View {
     @EnvironmentObject private var store: MemoryStore
+    @State private var completedReport: TerminationReport?
     let request: TerminationRequest
     let onClose: () -> Void
 
@@ -700,7 +701,7 @@ private struct TerminationFlowSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 17) {
-            if let report = store.terminationReport {
+            if let report = completedReport {
                 resultContent(report)
             } else {
                 confirmationContent
@@ -712,6 +713,11 @@ private struct TerminationFlowSheet: View {
         .background(MemoryStyle.background)
         .interactiveDismissDisabled(store.isTerminating)
         .onExitCommand { if !store.isTerminating { onClose() } }
+        .onReceive(store.$terminationReport) { report in
+            // Other surfaces may start or complete their own request. Preserve
+            // this sheet's completed result independently of the shared store.
+            if let report, report.requestID == request.id { completedReport = report }
+        }
     }
 
     private var confirmationContent: some View {

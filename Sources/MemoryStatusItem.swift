@@ -43,13 +43,15 @@ struct MemoryStatusPresentation: Equatable {
 }
 
 @MainActor
-final class MemoryStatusItem: NSObject {
+final class MemoryStatusItem: NSObject, NSPopoverDelegate {
     private let statusItem: NSStatusItem
     private let store: MemoryStore
     private let loginItem: LoginItemManager
     private let popover = NSPopover()
+    private let termination = PopoverTerminationState()
     private let openDashboard: () -> Void
     private var observation: AnyCancellable?
+    private var terminationObservation: AnyCancellable?
     private var freshnessTimer: Timer?
 
     init(store: MemoryStore, loginItem: LoginItemManager, openDashboard: @escaping () -> Void) {
@@ -60,6 +62,7 @@ final class MemoryStatusItem: NSObject {
         super.init()
         popover.behavior = .transient
         popover.animates = true
+        popover.delegate = self
 
         if let button = statusItem.button {
             let image = NSImage(systemSymbolName: "memorychip", accessibilityDescription: "内存使用率")
@@ -76,6 +79,11 @@ final class MemoryStatusItem: NSObject {
         // next main-queue turn reads the newly committed values.
         observation = store.objectWillChange.sink { [weak self] _ in
             DispatchQueue.main.async { self?.render() }
+        }
+        // Capture the emitted value immediately, even when the popover is closed.
+        // A later request may clear the store's shared report.
+        terminationObservation = store.$terminationReport.sink { [weak self] report in
+            self?.termination.receive(report)
         }
         let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.render() }
@@ -125,7 +133,7 @@ final class MemoryStatusItem: NSObject {
         loginItem.refreshStatus()
         let availableHeight = (button.window?.screen?.visibleFrame.height ?? 900) - 44
         let height = min(680, max(360, availableHeight))
-        let view = MenuBarPopoverView(store: store, loginItem: loginItem, height: height,
+        let view = MenuBarPopoverView(store: store, loginItem: loginItem, termination: termination, height: height,
                                      openDashboard: { [weak self] in self?.openPanel() },
                                      quit: { NSApp.terminate(nil) })
         popover.contentViewController = NSHostingController(rootView: view)
@@ -133,6 +141,10 @@ final class MemoryStatusItem: NSObject {
         NSApp.activate(ignoringOtherApps: true)
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
+    }
+
+    func popoverDidClose(_ notification: Notification) {
+        termination.popoverDidClose()
     }
 
     private func showContextMenu() {

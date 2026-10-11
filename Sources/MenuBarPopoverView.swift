@@ -45,6 +45,71 @@ enum MenuBarMemoryPresentation {
     }
 }
 
+/// Owned by the status item, so closing the transient popover cannot lose an
+/// in-flight operation or associate another window's result with this request.
+@MainActor
+final class PopoverTerminationState: ObservableObject {
+    @Published private(set) var request: TerminationRequest?
+    @Published private(set) var hasSubmitted = false
+    @Published private(set) var report: TerminationReport?
+
+    @discardableResult
+    func begin(_ request: TerminationRequest, isBusy: Bool) -> Bool {
+        guard self.request == nil, !isBusy,
+              request.processes.contains(where: { ProcessTerminator.blockedReason(for: $0) == nil }) else { return false }
+        self.request = request
+        hasSubmitted = false
+        report = nil
+        return true
+    }
+
+    /// Returns the frozen targets only once; the store independently serializes
+    /// execution across the popover and the full dashboard.
+    func submit(isBusy: Bool) -> TerminationRequest? {
+        guard let request, !hasSubmitted, !isBusy else { return nil }
+        hasSubmitted = true
+        return request
+    }
+
+    func receive(_ report: TerminationReport?) {
+        guard hasSubmitted, self.report == nil, let request, let report,
+              report.requestID == request.id else { return }
+        self.report = report
+    }
+
+    func dismiss() {
+        guard !hasSubmitted || report != nil else { return }
+        request = nil
+        hasSubmitted = false
+        report = nil
+    }
+
+    func popoverDidClose() {
+        if !hasSubmitted { dismiss() }
+    }
+}
+
+enum PopoverTerminationPresentation {
+    static func blockedReason(for group: AppMemory) -> String? {
+        if group.processes.isEmpty { return "没有可确认的进程。" }
+        let reasons = group.processes.compactMap { ProcessTerminator.blockedReason(for: $0) }
+        guard reasons.count == group.processes.count else { return nil }
+        return Array(Set(reasons)).sorted().joined(separator: "\n")
+    }
+
+    static func resultLabel(_ outcome: TerminationOutcome) -> String {
+        switch outcome {
+        case .terminated: "已确认退出"
+        case .alreadyExited: "原进程已退出"
+        case .identityChanged: "身份已变化"
+        case .permissionDenied: "没有权限"
+        case .protected: "已保护"
+        case .failed: "需检查"
+        case .stillRunning: "未确认退出"
+        }
+    }
+}
+
 private struct PopoverGlass: NSViewRepresentable {
     func makeNSView(context: Context) -> NSVisualEffectView {
         let view = NSVisualEffectView()
@@ -59,6 +124,7 @@ private struct PopoverGlass: NSViewRepresentable {
 struct MenuBarPopoverView: View {
     @ObservedObject var store: MemoryStore
     @ObservedObject var loginItem: LoginItemManager
+    @ObservedObject var termination: PopoverTerminationState
     let height: CGFloat
     let openDashboard: () -> Void
     let quit: () -> Void
@@ -74,12 +140,18 @@ struct MenuBarPopoverView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            summary.padding(.horizontal, 20).padding(.top, 20).padding(.bottom, 17)
-            Divider().padding(.horizontal, 20)
-            applicationList
-            Divider()
-            controls
+        Group {
+            if let request = termination.request {
+                terminationContent(request)
+            } else {
+                VStack(spacing: 0) {
+                    summary.padding(.horizontal, 20).padding(.top, 20).padding(.bottom, 17)
+                    Divider().padding(.horizontal, 20)
+                    applicationList
+                    Divider()
+                    controls
+                }
+            }
         }
         .frame(width: 384, height: height)
         .background(PopoverGlass())
@@ -171,24 +243,177 @@ struct MenuBarPopoverView: View {
     }
 
     private func applicationRow(_ group: AppMemory) -> some View {
-        HStack(spacing: 10) {
-            if let path = group.bundlePath {
-                Image(nsImage: AppIconCache.shared.icon(for: path)).resizable().frame(width: 27, height: 27)
-            } else {
-                Image(systemName: "app.fill").font(.system(size: 24)).foregroundStyle(.secondary)
-                    .frame(width: 27, height: 27)
+        HStack(spacing: 8) {
+            HStack(spacing: 9) {
+                if let path = group.bundlePath {
+                    Image(nsImage: AppIconCache.shared.icon(for: path)).resizable().frame(width: 27, height: 27)
+                } else {
+                    Image(systemName: "app.fill").font(.system(size: 24)).foregroundStyle(.secondary)
+                        .frame(width: 27, height: 27)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(group.name).font(.system(size: 12, weight: .medium)).lineLimit(1).truncationMode(.middle)
+                    Text(MenuBarMemoryPresentation.amount(group.bytes))
+                        .font(.system(size: 10)).foregroundStyle(.secondary).monospacedDigit()
+                }
+                Spacer(minLength: 2)
+                Text(MenuBarMemoryPresentation.groupPercentage(group, total: store.snapshot?.totalBytes ?? 0))
+                    .font(.system(size: 12, weight: .medium)).monospacedDigit().frame(width: 52, alignment: .trailing)
             }
-            Text(group.name).font(.system(size: 12, weight: .medium)).lineLimit(1).truncationMode(.middle)
-            Spacer(minLength: 6)
-            Text(MenuBarMemoryPresentation.amount(group.bytes))
-                .font(.system(size: 10)).foregroundStyle(.secondary).monospacedDigit()
-            Text(MenuBarMemoryPresentation.groupPercentage(group, total: store.snapshot?.totalBytes ?? 0))
-                .font(.system(size: 12, weight: .medium)).monospacedDigit().frame(width: 52, alignment: .trailing)
+            .accessibilityElement(children: .combine)
+            .help(rowDetail(group))
+            forceQuitButton(group)
         }
-        .padding(.horizontal, 8).frame(height: 35)
+        .padding(.horizontal, 8).frame(height: 42)
         .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
-        .help(rowDetail(group))
+        .accessibilityElement(children: .contain)
+    }
+
+    private func forceQuitButton(_ group: AppMemory) -> some View {
+        let blocked = PopoverTerminationPresentation.blockedReason(for: group)
+        let tooltip = store.isTerminating ? "正在处理退出请求，请稍候。" :
+            (blocked ?? "强制退出“\(group.name)”；点击后确认所选进程。")
+        return Button {
+            let request = TerminationRequest(name: group.name, processes: group.processes, isGroup: true)
+            if termination.begin(request, isBusy: store.isTerminating) { store.prepareTermination() }
+        } label: {
+            Image(systemName: blocked == nil ? "xmark.circle" : "lock.fill")
+                .font(.system(size: blocked == nil ? 15 : 12))
+                .foregroundStyle(blocked != nil || store.isTerminating ? Color.secondary.opacity(0.45) : Color.red.opacity(0.8))
+                .frame(width: 24, height: 28).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(blocked != nil || store.isTerminating)
+        .help(tooltip)
+        .accessibilityLabel(blocked == nil ? "强制退出\(group.name)" : "\(group.name)，无法强制退出")
+        .accessibilityHint(tooltip)
+    }
+
+    private func terminationContent(_ request: TerminationRequest) -> some View {
+        VStack(alignment: .leading, spacing: 15) {
+            if let report = termination.report {
+                terminationResult(report)
+            } else {
+                terminationConfirmation(request)
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onExitCommand { termination.dismiss() }
+    }
+
+    @ViewBuilder
+    private func terminationConfirmation(_ request: TerminationRequest) -> some View {
+        let protectedCount = request.processes.filter { ProcessTerminator.blockedReason(for: $0) != nil }.count
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "xmark.octagon.fill").font(.system(size: 28)).foregroundStyle(.red.opacity(0.85))
+            VStack(alignment: .leading, spacing: 5) {
+                Text(termination.hasSubmitted ? "正在强制退出…" : "确认强制退出？")
+                    .font(.system(size: 19, weight: .semibold))
+                Text(request.name).font(.system(size: 13, weight: .medium)).lineLimit(2)
+                Text("已选定 \(request.processes.count) 个进程")
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+            }
+        }
+        Text("未保存的内容可能丢失。只会处理下列已选定的进程，之后新启动的进程不会加入。")
+            .font(.system(size: 12)).foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                ForEach(request.processes.sorted { $0.pid < $1.pid }) { process in
+                    let reason = ProcessTerminator.blockedReason(for: process)
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: reason == nil ? "app.dashed" : "lock.fill")
+                            .foregroundStyle(.secondary).frame(width: 16)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(process.name).font(.system(size: 12, weight: .medium)).lineLimit(2)
+                            if let reason {
+                                Text("将跳过：\(reason)").font(.system(size: 10)).foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                        Spacer(minLength: 4)
+                        Text("PID \(process.pid)").font(.system(size: 10, design: .monospaced)).foregroundStyle(.secondary)
+                    }.padding(11)
+                    Divider().opacity(0.45)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 11))
+        if protectedCount > 0 {
+            Label("\(protectedCount) 个受保护或身份不完整的进程将跳过。", systemImage: "lock.fill")
+                .font(.system(size: 10)).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        Divider()
+        if termination.hasSubmitted {
+            HStack(spacing: 9) {
+                ProgressView().controlSize(.small)
+                Text("正在核对进程身份与退出结果…").font(.system(size: 11)).foregroundStyle(.secondary)
+            }.frame(maxWidth: .infinity, minHeight: 30, alignment: .leading)
+        } else {
+            HStack(spacing: 10) {
+                Button("取消") { termination.dismiss() }
+                    .keyboardShortcut(.defaultAction).buttonStyle(.bordered)
+                Spacer()
+                Button("强制退出", role: .destructive) {
+                    if let frozenRequest = termination.submit(isBusy: store.isTerminating) {
+                        store.performTermination(frozenRequest)
+                    }
+                }
+                .buttonStyle(.borderedProminent).tint(.red)
+                .disabled(store.isTerminating || protectedCount == request.processes.count)
+            }.controlSize(.regular).frame(height: 30)
+            if store.isTerminating {
+                Text("另一个退出请求正在处理中，请稍候。")
+                    .font(.system(size: 10)).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func terminationResult(_ report: TerminationReport) -> some View {
+        let hasIssue = report.results.contains { $0.outcome != .terminated && $0.outcome != .alreadyExited }
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: hasIssue ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
+                .font(.system(size: 28)).foregroundStyle(hasIssue ? Color.orange : .green)
+            VStack(alignment: .leading, spacing: 5) {
+                Text(report.title).font(.system(size: 19, weight: .semibold))
+                Text(report.name).font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(2)
+            }
+        }
+        Text(report.message).font(.system(size: 11)).foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                ForEach(report.results) { result in
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text(result.name).font(.system(size: 12, weight: .medium)).lineLimit(2)
+                            Spacer(minLength: 2)
+                            Text("PID \(result.pid)").font(.system(size: 10, design: .monospaced)).foregroundStyle(.secondary)
+                        }
+                        Text(PopoverTerminationPresentation.resultLabel(result.outcome))
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(result.outcome == .terminated || result.outcome == .alreadyExited ? Color.green : .orange)
+                        Text(result.message).font(.system(size: 10)).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }.padding(11)
+                    Divider().opacity(0.45)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 11))
+        Text("列表正在刷新；后台服务可能自动重新启动。")
+            .font(.system(size: 10)).foregroundStyle(.secondary)
+        Divider()
+        HStack {
+            Spacer()
+            Button("返回应用列表") { termination.dismiss() }
+                .keyboardShortcut(.defaultAction).buttonStyle(.borderedProminent)
+        }.frame(height: 30)
     }
 
     private func rowDetail(_ group: AppMemory) -> String {

@@ -36,7 +36,13 @@ xcrun swiftc -O -target arm64-apple-macosx14.0 -sdk "$SDK_PATH" \
   "${UI_SOURCES[@]}" "$PROJECT_DIR/Tests/MenuBarTests.swift" "$BUILD_DIR/CMemory.o" \
   -framework AppKit -framework SwiftUI -framework Charts -framework ServiceManagement \
   -o "$BUILD_DIR/menu-bar-tests"
+xcrun swiftc -O -target arm64-apple-macosx14.0 -sdk "$SDK_PATH" \
+  -import-objc-header "$PROJECT_DIR/Sources/CMemory.h" \
+  "${UI_SOURCES[@]}" "$PROJECT_DIR/Tests/PopoverTerminationTests.swift" "$BUILD_DIR/CMemory.o" \
+  -framework AppKit -framework SwiftUI -framework Charts -framework ServiceManagement \
+  -o "$BUILD_DIR/popover-termination-tests"
 "$BUILD_DIR/collector-tests"
 "$BUILD_DIR/terminator-tests"
 "$BUILD_DIR/login-item-tests"
 "$BUILD_DIR/menu-bar-tests"
+"$BUILD_DIR/popover-termination-tests"

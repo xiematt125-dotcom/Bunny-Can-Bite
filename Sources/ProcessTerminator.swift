@@ -30,11 +30,13 @@ struct TerminationResult: Identifiable, Codable, Sendable {
 
 struct TerminationReport: Identifiable, Codable, Sendable {
     let id: UUID
+    let requestID: UUID
     let name: String
     let results: [TerminationResult]
 
-    init(name: String, results: [TerminationResult]) {
+    init(requestID: UUID, name: String, results: [TerminationResult]) {
         id = UUID()
+        self.requestID = requestID
         self.name = name
         self.results = results
     }
@@ -163,7 +165,7 @@ struct ProcessTerminator: Sendable {
         for process in pending {
             results[process.pid] = result(process, .stillRunning, "已发送退出信号，但进程仍在运行；请稍后刷新查看。")
         }
-        return TerminationReport(name: request.name, results: targets.compactMap { results[$0.pid] })
+        return TerminationReport(requestID: request.id, name: request.name, results: targets.compactMap { results[$0.pid] })
     }
 
     private func preflight(_ process: ProcessMemory) -> TerminationResult? {
