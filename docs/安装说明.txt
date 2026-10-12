@@ -1,10 +1,15 @@
-Memory Glass 1.3
+Memory Glass 1.3.2
+
+Bunny Can Bite 是开源仓库名称，Mac 应用名称仍为 Memory Glass。
+公开源码和安装包：https://github.com/xiematt125-dotcom/Bunny-Can-Bite
+最新发布：https://github.com/xiematt125-dotcom/Bunny-Can-Bite/releases/latest
+查看代码及下载安装包无需登录 GitHub。
 
 适用：Apple Silicon Mac（M 系列芯片），macOS 14 或更新版本。
 
 两种安装方式任选其一：
-1. 双击 .pkg，按 macOS 安装器提示安装到“应用程序”。
-2. 打开 .dmg，将 Memory Glass.app 拖到 Applications。
+1. 双击 MemoryGlass-1.3.2-arm64.pkg，按 macOS 安装器提示安装到“应用程序”。
+2. 打开 MemoryGlass-1.3.2-arm64.dmg，将 Memory Glass.app 拖到 Applications。
 
 升级前先从菜单栏退出旧版，再覆盖安装。只运行“应用程序”中的一份应用。
 安装完成后，在“应用程序”中打开 Memory Glass 一次。应用默认只显示在菜单栏，
@@ -14,7 +19,8 @@ Memory Glass 1.3
 登录时启动使用 macOS 原生登录项。请在应用里查看其真实状态；如果系统要求批准，
 按应用提示前往“系统设置 > 通用 > 登录项与扩展”允许。仅复制或安装文件不会注册登录项。
 
-此构建使用本地 ad-hoc 应用签名，无 Developer ID 签名，未经过 Apple 公证。
+此构建使用本地 ad-hoc 应用签名，应用没有 Developer ID 签名，
+安装包没有 Developer ID Installer 签名，未经过 Apple 公证。
 macOS 可能要求在“系统设置 > 隐私与安全性”确认允许打开。
 请仅打开你信任来源的安装包，无需关闭系统安全防护。
 
@@ -23,3 +29,7 @@ macOS 可能要求在“系统设置 > 隐私与安全性”确认允许打开�
 
 强制退出会丢失目标程序未保存的内容；应用会要求确认，不提升权限，
 且保护关键系统进程及自身。内存数据保留在本机，不上传到服务器。
+
+许可证：MIT，版权 Bunny Can Bite contributors。允许使用、修改、分发和商用，
+须保留版权与许可声明；软件按原样提供，不作担保。
+完整许可证位于 Memory Glass.app/Contents/Resources/LICENSE。

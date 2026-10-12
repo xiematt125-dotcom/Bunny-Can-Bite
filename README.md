@@ -1,6 +1,8 @@
-# Memory Glass
+# Bunny Can Bite
 
-原生 macOS 内存监测工具，为 Apple Silicon Mac 设计。SwiftUI、AppKit 与 Charts 构建界面，Darwin VM 和 libproc 提供本机实时数据。无需浏览器、服务器、运行时依赖或联网。
+**Bunny Can Bite** 是本开源仓库的名称；它提供的 Mac 应用仍叫 **Memory Glass**。
+
+Memory Glass 是原生 macOS 内存监测工具，为 Apple Silicon Mac 设计。SwiftUI、AppKit 与 Charts 构建界面，Darwin VM 和 libproc 提供本机实时数据。无需浏览器、服务器、运行时依赖或联网。
 
 ## 功能
 
@@ -15,14 +17,20 @@
 
 ## 安装与使用
 
-最新安装包发布在[私有仓库的 Releases](https://github.com/xiematt125-dotcom/memory-glass/releases/latest)。登录有访问权限的 GitHub 账号后，可下载 PKG 或 DMG；每次应用更新都会同步源码并发布对应版本的两个安装包与 SHA256 校验文件。
+源码和安装包公开发布在 [Bunny Can Bite](https://github.com/xiematt125-dotcom/Bunny-Can-Bite)，查看源码和下载安装包无需登录 GitHub。每次应用更新都会同步源码，并在 [Releases](https://github.com/xiematt125-dotcom/Bunny-Can-Bite/releases/latest) 发布对应版本的 PKG、DMG 与 SHA256 校验文件。
+
+当前版本 **Memory Glass 1.3.2**：
+
+- [下载 PKG 安装包](https://github.com/xiematt125-dotcom/Bunny-Can-Bite/releases/download/v1.3.2/MemoryGlass-1.3.2-arm64.pkg)（推荐，使用 Mac 原生安装器）。
+- [下载 DMG 安装包](https://github.com/xiematt125-dotcom/Bunny-Can-Bite/releases/download/v1.3.2/MemoryGlass-1.3.2-arm64.dmg)（拖动安装）。
+- [查看发布说明及校验文件](https://github.com/xiematt125-dotcom/Bunny-Can-Bite/releases/tag/v1.3.2)。
 
 需要 **Apple Silicon（M 系列芯片）与 macOS 14 或更新版本**。当前产物仅包含 `arm64`，不支持 Intel Mac。
 
 两种安装方式任选其一：
 
-1. 打开 `MemoryGlass-1.3.1-arm64.pkg`，使用 macOS 安装器安装到 `/Applications`。
-2. 打开 `MemoryGlass-1.3.1-arm64.dmg`，将 `Memory Glass.app` 拖入 `Applications`。
+1. 打开 `MemoryGlass-1.3.2-arm64.pkg`，使用 macOS 安装器安装到 `/Applications`。
+2. 打开 `MemoryGlass-1.3.2-arm64.dmg`，将 `Memory Glass.app` 拖入 `Applications`。
 
 升级前先从菜单栏退出旧版，再覆盖安装。安装后从“应用程序”打开一次 Memory Glass；以后从菜单栏查看数据。请保留并运行安装目录中的一份应用，避免从下载目录或磁盘映像启动另一份。
 
@@ -32,7 +40,7 @@
 
 默认构建使用 **ad-hoc 应用签名**；分发包没有 Developer ID / Developer ID Installer 签名，**未经 Apple 公证**。下载到其他 Mac 后可能触发 Gatekeeper 提示；请确认来源可信，再按 macOS“隐私与安全性”中的允许打开流程操作。不要关闭系统安全防护。
 
-该签名方式适合自用与源码构建。需要面向公众提供无额外提示的安装体验时，应使用自己的 Apple Developer 身份签名并完成公证。
+公开下载的当前安装包使用上述签名方式。需要提供无额外提示的安装体验时，应使用 Apple Developer 身份签名并完成公证。
 
 ### 卸载
 
@@ -107,4 +115,15 @@ Tests/        采样与强退回归测试
 docs/         安装说明
 build.sh      编译与 ad-hoc 签名
 package.sh    PKG 与 DMG 分发包
+LICENSE       MIT 许可证
 ```
+
+## 许可证
+
+本项目采用 [MIT 许可证](LICENSE)，版权归 **Bunny Can Bite contributors**。允许使用、修改、分发和商用，分发时须保留版权声明和许可声明；软件按原样提供，不作担保。安装包内也包含许可证，位置为 `Memory Glass.app/Contents/Resources/LICENSE`。
+
+## 反馈与贡献
+
+欢迎在 [Issues](https://github.com/xiematt125-dotcom/Bunny-Can-Bite/issues) 报告问题或提出建议。请附上 macOS 版本、芯片型号、应用版本和复现步骤；发布截图或诊断信息前，先移除私人路径和敏感程序信息。
+
+代码贡献可通过 Pull Request 提交。请先运行 `./Tests/run-tests.sh` 和 `./build.sh`，说明改动目的和验证结果；涉及菜单栏、浮层或登录项的改动还需在真实 macOS 图形会话中验证。

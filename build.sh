@@ -27,6 +27,7 @@ xcrun swiftc -O -parse-as-library -target arm64-apple-macosx14.0 -sdk "$SDK_PATH
   -framework AppKit -framework SwiftUI -framework Charts -framework ServiceManagement \
   -o "$STAGED_APP/Contents/MacOS/MemoryGlass"
 cp "$PROJECT_DIR/Info.plist" "$STAGED_APP/Contents/Info.plist"
+cp "$PROJECT_DIR/LICENSE" "$STAGED_APP/Contents/Resources/LICENSE"
 if [[ -f "$PROJECT_DIR/Resources/AppIcon.icns" ]]; then
   cp "$PROJECT_DIR/Resources/AppIcon.icns" "$STAGED_APP/Contents/Resources/AppIcon.icns"
 fi

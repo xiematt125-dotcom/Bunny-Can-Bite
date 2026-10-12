@@ -21,6 +21,10 @@ if [[ "$IDENTIFIER" != "local.memoryglass.monitor" || ! "$VERSION" =~ '^[0-9]+\.
   print -u2 -- 'Unexpected bundle identifier or version.'
   exit 1
 fi
+if ! cmp -s "$PROJECT_DIR/LICENSE" "$APP_DIR/Contents/Resources/LICENSE"; then
+  print -u2 -- 'Expected an application bundle containing the current MIT license. Rebuild the application before packaging.'
+  exit 1
+fi
 /usr/bin/codesign --verify --deep --strict "$APP_DIR"
 STAGING_DIR="$(mktemp -d "$PROJECT_DIR/.build/package.XXXXXX")"
 trap 'rm -rf -- "$STAGING_DIR"' EXIT
@@ -42,6 +46,7 @@ mv -f "$STAGING_DIR/MemoryGlass.pkg" "$PACKAGE_PATH"
 /usr/bin/ditto "$APP_DIR" "$STAGING_DIR/dmg/Memory Glass.app"
 ln -s /Applications "$STAGING_DIR/dmg/Applications"
 cp "$PROJECT_DIR/docs/安装说明.txt" "$STAGING_DIR/dmg/安装说明.txt"
+cp "$PROJECT_DIR/LICENSE" "$STAGING_DIR/dmg/LICENSE"
 DMG_PATH="$OUTPUT_DIR/MemoryGlass-$VERSION-arm64.dmg"
 /usr/bin/hdiutil create -ov -quiet -format UDZO \
   -volname "Memory Glass $VERSION" -srcfolder "$STAGING_DIR/dmg" \
